@@ -2,7 +2,6 @@ import socket
 import threading
 from colorama import Fore
 from .templateHandler import parse_template
-
 HOST, PORT = '127.0.0.1', 5000
 
 
@@ -30,10 +29,11 @@ class Serve:
         except KeyboardInterrupt:
             print("server is closing")
             self.lis_socket.close()
+            print("server is closed")
             return
 
     def handle_request(self, connection, address):
-        data = connection.recv(1024)
+        data = connection.recv(8190)
         decode_data = data.decode()
         method, path = self.parse_request(decode_data)
         print(f"{method} // {path} from {address}")
@@ -45,7 +45,7 @@ class Serve:
             print(
                 f"{Fore.CYAN} {method}/{path} successfully responce with 200 to {address} {Fore.WHITE}")
         else:
-            response_data = self.render_temp('404.html')
+            response_data = self.render_temp('404.html', status_code=404)
             print(
                 f"{Fore.RED} {method} // {path} Invalid responce with 404 to {address} {Fore.WHITE}")
             connection.sendall(response_data.encode())
@@ -54,6 +54,8 @@ class Serve:
     def parse_request(self, request):
         lines = request.split('\n')
         start_line = lines[0].split()
+        if start_line[1] == None:
+            return self.render_temp('400.html', status_code=404)
         method = start_line[0].upper()
         path = start_line[1]
         return method, path
@@ -64,27 +66,28 @@ class Serve:
             return func
         return decorator
 
-    def response(self, res, status_code=''):
+    def response(self, res, status_code=200):
         return f"""\
-HTTP/1.1 {status_code}
+HTTP/1.0 {status_code}
 Content-Type: application/json
 
 {res}
 """
 
-    def render_temp(self, path, *args):
-        data = parse_template(path)
+    def render_temp(self, path, status_code=200, *args):
+        data, statuscode = parse_template(path=path, status_code=status_code)
         if 'error' in data:
             print(f"{path} is not valid")
             res = "<h1>NO FILE FOUND </h1>"
             return f"""\
-HTTP/1.1 500 
+HTTP/1.0 500 Internal Server Error
 Content-Type: text/html
 
 {res}
 """
+
         return f"""\
-HTTP/1.1 200 ok
+HTTP/1.0 {statuscode}
 Content-Type: text/html
 
 {data}
